@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
-import { Plus, Trash2, Calendar, User, Save, Edit, Globe, Lock, BarChart, Archive, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, Calendar, User, Save, Edit, Globe, Lock, Archive, ChevronDown, ChevronUp } from 'lucide-react'
 
 // Define types and initial data
 type TaskType = 'Chat' | 'Emails' | 'All tasks' | 'All tasks/Chat assist'
@@ -202,7 +202,7 @@ function AdminView({ shiftTables, setShiftTables }: { shiftTables: ShiftTable[],
   const publishTable = (id: string) => {
     const activeCountry = activeCountries.Egypt ? 'Egypt' : 'Morocco'
     const updatedShiftTables = shiftTables.map(table => 
-      table.id === id ? { ...table, publishedTo: activeCountry, isLocked: true } : table
+      table.id === id ? { ...table, publishedTo: activeCountry as 'Egypt' | 'Morocco', isLocked: true } : table
     )
     setShiftTables(updatedShiftTables)
   }
@@ -406,7 +406,7 @@ function AdminView({ shiftTables, setShiftTables }: { shiftTables: ShiftTable[],
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[150px] bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-20">Agent's Name</TableHead>
+                          <TableHead className="w-[150px] bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-20">Agent&apos;s Name</TableHead>
                           {shiftTable.timeSlots.map((slot, index) => (
                             <TableHead 
                               key={index} 
@@ -508,7 +508,10 @@ function AdminView({ shiftTables, setShiftTables }: { shiftTables: ShiftTable[],
                   onClick={() => archiveDay(date)}
                   className="mt-4 mx-auto block w-full max-w-md bg-gradient-to-r from-purple-400 to-pink-500 text-white hover:from-purple-500 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
                 >
-                  <Archive className="mr-2 h-5 w-5" /> Archive Day
+                  <div className="flex items-center justify-center w-full font-bold">
+                    <Archive className="mr-2 h-5 w-5" />
+                    <span>Archive Day</span>
+                  </div>
                 </Button>
               </motion.div>
             )}
@@ -573,7 +576,7 @@ function PublishedView({ shiftTables, country }: { shiftTables: ShiftTable[], co
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[150px] bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-20">Agent's Name</TableHead>
+                    <TableHead className="w-[150px] bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-20">Agent&apos;s Name</TableHead>
                     {shiftTable.timeSlots.map((slot, index) => (
                       <TableHead 
                         key={index} 
@@ -803,7 +806,7 @@ function ArchiveView({ shiftTables }: { shiftTables: ShiftTable[] }) {
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead className="w-[150px] bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-20">Agent's Name</TableHead>
+                                  <TableHead className="w-[150px] bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-20">Agent&apos;s Name</TableHead>
                                   {shiftTable.timeSlots.map((slot, index) => (
                                     <TableHead 
                                       key={index} 

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import ModernScheduleMaker from '../components/ModernScheduleMaker'
 
 export default function Home() {
@@ -14,5 +13,5 @@ export default function Home() {
         © 2024 Modern Schedule Maker
       </footer>
     </div>
-  );
+  )
 }
