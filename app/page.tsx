@@ -7,7 +7,7 @@ export default function Home() {
     <div className="min-h-screen p-8">
       <header className="fixed top-4 left-4">
         <Image
-          src="/InDrive_Logo.png"
+          src={`${process.env.GITHUB_PAGES ? '/ShiftsMaker' : ''}/InDrive_Logo.png`}
           alt="InDrive Logo"
           width={120}
           height={40}
