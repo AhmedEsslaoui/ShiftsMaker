@@ -1893,10 +1893,9 @@ export default function ModernScheduleMaker() {
 
   // Initialize active tab from localStorage after mount
   useEffect(() => {
-    if (isLoggedIn) {
-      loadAllTables();
-    }
-  }, [isLoggedIn, loadAllTables]);
+    // Load tables regardless of login status for public views
+    loadAllTables();
+  }, [loadAllTables]);
 
   // Function to update both states instantly and sync with Firestore
   const handlePublishTable = async (id: string) => {
