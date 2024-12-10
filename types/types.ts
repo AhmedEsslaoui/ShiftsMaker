@@ -8,16 +8,15 @@ export type TaskType =
   | 'Emails'
   | 'Appeals/Reviews/Calls/App follow'
   | 'App follow'
-  | 'Break'
-  | 'Sick'
   // Morocco Tasks
-  | 'Morocco_Chat'
-  | 'Morocco_Chat_Appeals'
-  | 'Morocco_Chat_Emails'
-  | 'Morocco_Emails_Appeals'
-  | 'Morocco_Emails_Reviews'
-  | 'Morocco_All_Tasks'
-  | 'Morocco_Break';
+  | 'Chat/Appeals+Reviews'
+  | 'Chat /Emails+Groups+ Calls'
+  | 'Emails ( New ) + Appeals+ Calls'
+  | 'Emails (Need attention) + Reviews + Groups'
+  | 'All tasks + Calls'
+  // Common Tasks
+  | 'Break'
+  | 'Sick';
 
 export interface Task {
   type: TaskType;
@@ -47,7 +46,7 @@ export interface ShiftTable {
   senior: string;
 }
 
-export const taskTypesByCountry = {
+export const taskTypesByCountry: Record<'Egypt' | 'Morocco', TaskType[]> = {
   Egypt: [
     'Chat',
     'Appeals/Reviews',
@@ -61,7 +60,6 @@ export const taskTypesByCountry = {
     'Sick'
   ],
   Morocco: [
-    'Chat',
     'Chat/Appeals+Reviews',
     'Chat /Emails+Groups+ Calls',
     'Emails ( New ) + Appeals+ Calls',

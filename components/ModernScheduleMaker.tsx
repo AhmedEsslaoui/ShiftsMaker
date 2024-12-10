@@ -56,6 +56,9 @@ import toast from 'react-hot-toast'
 import { loadShiftTables, saveShiftTables, loadAgents, saveAgents } from '@/lib/firebase'
 import type { ShiftTable, ShiftType, Task, Agent } from '@/types/types'
 import type { TaskType as ImportedTaskType } from '@/types/types'
+import { useClientAnalyticsFilters } from './ClientAnalyticsFilters'
+import { useClientActiveCountries } from './useClientActiveCountries'
+import { useClientActiveTab } from './useClientActiveTab'
 
 type TaskType = ImportedTaskType;
 
@@ -109,13 +112,13 @@ const taskTypesByCountry: Record<string, TaskType[]> = {
     'Sick'
   ],
   'Morocco': [
-    'Morocco_Chat',
-    'Morocco_Chat_Appeals',
-    'Morocco_Chat_Emails',
-    'Morocco_Emails_Appeals',
-    'Morocco_Emails_Reviews',
-    'Morocco_All_Tasks',
-    'Morocco_Break',
+    'Chat',
+    'Chat/Appeals+Reviews',
+    'Chat /Emails+Groups+ Calls',
+    'Emails ( New ) + Appeals+ Calls',
+    'Emails (Need attention) + Reviews + Groups',
+    'All tasks + Calls',
+    'Break',
     'Sick'
   ]
 };
@@ -134,18 +137,18 @@ const taskOptions = {
     { value: 'Sick', label: 'Sick' }
   ],
   Morocco: [
-    { value: 'Morocco_Chat', label: 'Chat' },
-    { value: 'Morocco_Chat_Appeals', label: 'Chat/Appeals+Reviews' },
-    { value: 'Morocco_Chat_Emails', label: 'Chat /Emails+Groups+ Calls' },
-    { value: 'Morocco_Emails_Appeals', label: 'Emails ( New ) + Appeals+ Calls' },
-    { value: 'Morocco_Emails_Reviews', label: 'Emails (Need attention) + Reviews + Groups' },
-    { value: 'Morocco_All_Tasks', label: 'All tasks + Calls' },
-    { value: 'Morocco_Break', label: 'Break' },
+    { value: 'Chat', label: 'Chat' },
+    { value: 'Chat/Appeals+Reviews', label: 'Chat/Appeals+Reviews' },
+    { value: 'Chat /Emails+Groups+ Calls', label: 'Chat /Emails+Groups+ Calls' },
+    { value: 'Emails ( New ) + Appeals+ Calls', label: 'Emails ( New ) + Appeals+ Calls' },
+    { value: 'Emails (Need attention) + Reviews + Groups', label: 'Emails (Need attention) + Reviews + Groups' },
+    { value: 'All tasks + Calls', label: 'All tasks + Calls' },
+    { value: 'Break', label: 'Break' },
     { value: 'Sick', label: 'Sick' }
   ]
 };
 
-const taskColors: Record<TaskType, string> = {
+const taskThemes: Record<TaskType, string> = {
   // Egypt Tasks
   'Chat': 'from-emerald-200 to-teal-200',
   'Appeals/Reviews': 'from-blue-200 to-cyan-200',
@@ -155,18 +158,18 @@ const taskColors: Record<TaskType, string> = {
   'Emails': 'from-amber-200 to-yellow-200',
   'Appeals/Reviews/Calls/App follow': 'from-rose-200 to-pink-200',
   'App follow': 'from-sky-200 to-blue-200',
-  'Break': 'from-gray-200 to-slate-200',
-  'Sick': 'from-red-200 to-rose-200',
   
   // Morocco Tasks
-  'Morocco_Chat': 'from-emerald-200 to-teal-200',
-  'Morocco_Chat_Appeals': 'from-blue-200 to-cyan-200',
-  'Morocco_Chat_Emails': 'from-blue-200 to-cyan-200',
-  'Morocco_Emails_Appeals': 'from-amber-200 to-yellow-200',
-  'Morocco_Emails_Reviews': 'from-violet-200 to-purple-200',
-  'Morocco_All_Tasks': 'from-rose-200 to-pink-200',
-  'Morocco_Break': 'from-gray-200 to-slate-200'
-}
+  'Chat/Appeals+Reviews': 'from-blue-200 to-cyan-200',
+  'Chat /Emails+Groups+ Calls': 'from-blue-200 to-cyan-200',
+  'Emails ( New ) + Appeals+ Calls': 'from-amber-200 to-yellow-200',
+  'Emails (Need attention) + Reviews + Groups': 'from-violet-200 to-purple-200',
+  'All tasks + Calls': 'from-rose-200 to-pink-200',
+  
+  // Common Tasks
+  'Break': 'from-gray-200 to-slate-200',
+  'Sick': 'from-red-200 to-rose-200'
+};
 
 const initialAgents = {
   Egypt: [
@@ -263,20 +266,23 @@ function AdminView({
   setShiftTables,
   publishedTables,
   setPublishedTables,
-  updateTablesAndSync
+  updateTablesAndSync,
+  activeCountries,
+  setActiveCountries
 }: { 
   shiftTables: ShiftTable[], 
   setShiftTables: React.Dispatch<React.SetStateAction<ShiftTable[]>>,
   publishedTables: ShiftTable[],
   setPublishedTables: React.Dispatch<React.SetStateAction<ShiftTable[]>>,
-  updateTablesAndSync: (tables: ShiftTable[]) => Promise<void>
+  updateTablesAndSync: (tables: ShiftTable[]) => Promise<void>,
+  activeCountries: { Egypt: boolean, Morocco: boolean },
+  setActiveCountries: React.Dispatch<React.SetStateAction<{ Egypt: boolean, Morocco: boolean }>>
 }) {
   const [newShiftType, setNewShiftType] = useState<ShiftType>('Morning')
   const [splitInterval, setSplitInterval] = useState<number>(1);
   const [splitIntervalInput, setSplitIntervalInput] = useState<string>("1");
   const [previewTimeSlots, setPreviewTimeSlots] = useState<string[]>([]);
   const [splitWarning, setSplitWarning] = useState<string>('');
-  const [activeCountries, setActiveCountries] = useState({ Egypt: true, Morocco: false });
   const [agents, setAgents] = useState<Record<'Egypt' | 'Morocco', string[]>>(initialAgents);
   const [newAgentName, setNewAgentName] = useState('')
   const [newAgentCountry, setNewAgentCountry] = useState<'Egypt' | 'Morocco'>('Egypt')
@@ -705,17 +711,20 @@ function AdminView({
       return acc;
     }, {} as Record<string, ShiftTable[]>);
 
-  const toggleActiveCountry = (country: 'Egypt' | 'Morocco') => {
+  const handleCountryChange = (country: 'Egypt' | 'Morocco') => {
+    // If the current country is already selected, don't allow deselecting it
     if (activeCountries[country]) return;
 
+    // Set the selected country to true and the other to false
     const newActiveCountries = {
       Egypt: country === 'Egypt',
       Morocco: country === 'Morocco'
     };
     
     setActiveCountries(newActiveCountries);
-    toast.success('Country preference saved');
-  }
+    // Save to localStorage immediately
+    localStorage.setItem('activeCountries', JSON.stringify(newActiveCountries));
+  };
 
   const getAvailableAgents = (tableCountry: 'Egypt' | 'Morocco') => {
     return agents[tableCountry] || initialAgents[tableCountry] || [];
@@ -797,77 +806,73 @@ function AdminView({
     loadTempChanges();
   }, [setShiftTables]);
 
+  useEffect(() => {
+    localStorage.setItem('activeCountries', JSON.stringify(activeCountries));
+  }, [activeCountries, setActiveCountries]);
+
   return (
     <div className="container mx-auto p-4 space-y-8">
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-4">
-            <Label className="text-sm font-medium">Active Country:</Label>
+      <Card>
+        <CardHeader>
+          <CardTitle>Active Country</CardTitle>
+          <CardDescription>Select which country's schedule to manage</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex space-x-4">
             <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="egypt-checkbox"
-                  checked={activeCountries.Egypt}
-                  onCheckedChange={() => toggleActiveCountry('Egypt')}
-                />
-                <label
-                  htmlFor="egypt-checkbox"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Egypt
-                </label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="morocco-checkbox"
-                  checked={activeCountries.Morocco}
-                  onCheckedChange={() => toggleActiveCountry('Morocco')}
-                />
-                <label
-                  htmlFor="morocco-checkbox"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Morocco
-                </label>
-              </div>
+              <Switch
+                id="egypt-switch"
+                checked={activeCountries.Egypt}
+                onCheckedChange={() => handleCountryChange('Egypt')}
+              />
+              <Label htmlFor="egypt-switch">Egypt</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="morocco-switch"
+                checked={activeCountries.Morocco}
+                onCheckedChange={() => handleCountryChange('Morocco')}
+              />
+              <Label htmlFor="morocco-switch">Morocco</Label>
             </div>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline">Add New Agent</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Agent</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="new-agent-name">Agent Name</Label>
-                  <Input
-                    id="new-agent-name"
-                    value={newAgentName}
-                    onChange={(e) => setNewAgentName(e.target.value)}
-                    placeholder="Enter agent name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="new-agent-country">Country</Label>
-                  <Select value={newAgentCountry} onValueChange={(value: 'Egypt' | 'Morocco') => setNewAgentCountry(value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Egypt">Egypt</SelectItem>
-                      <SelectItem value="Morocco">Morocco</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={addNewAgent}>Add Agent</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+        </CardContent>
       </Card>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline">Add New Agent</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Agent</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="new-agent-name">Agent Name</Label>
+              <Input
+                id="new-agent-name"
+                value={newAgentName}
+                onChange={(e) => setNewAgentName(e.target.value)}
+                placeholder="Enter agent name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new-agent-country">Country</Label>
+              <Select value={newAgentCountry} onValueChange={(value: 'Egypt' | 'Morocco') => setNewAgentCountry(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Egypt">Egypt</SelectItem>
+                  <SelectItem value="Morocco">Morocco</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={addNewAgent}>Add Agent</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {Object.entries(tablesByDate).map(([date, tables]) => (
         <Card key={date} className="overflow-hidden">
@@ -1011,7 +1016,7 @@ function AdminView({
                                   {shiftTable.isLocked ? (
                                     <div className={cn(
                                       "w-full h-full p-2 rounded",
-                                      agent.tasks[taskIndex] ? `bg-gradient-to-r ${taskColors[agent.tasks[taskIndex].type]}` : "bg-white"
+                                      agent.tasks[taskIndex] ? `bg-gradient-to-r ${taskThemes[agent.tasks[taskIndex].type]}` : "bg-white"
                                     )}>
                                       {agent.tasks[taskIndex]?.type || '-'}
                                     </div>
@@ -1023,7 +1028,7 @@ function AdminView({
                                       >
                                         <SelectTrigger className={cn(
                                           "w-full h-full border-0 focus:ring-0",
-                                          agent.tasks[taskIndex] ? `bg-gradient-to-r ${taskColors[agent.tasks[taskIndex].type]}` : "bg-white"
+                                          agent.tasks[taskIndex] ? `bg-gradient-to-r ${taskThemes[agent.tasks[taskIndex].type]}` : "bg-white"
                                         )}>
                                           <SelectValue placeholder="Select task" />
                                         </SelectTrigger>
@@ -1211,7 +1216,7 @@ function PublishedView({ shiftTables, country }: { shiftTables: ShiftTable[], co
                         >
                           <div className={cn(
                             "w-full h-full p-2 rounded",
-                            task ? `bg-gradient-to-r ${taskColors[task.type]}` : "bg-white"
+                            task ? `bg-gradient-to-r ${taskThemes[task.type]}` : "bg-white"
                           )}>
                             {task?.type || '-'}
                           </div>
@@ -1374,7 +1379,7 @@ function ArchiveView({ shiftTables, setShiftTables, updateTablesAndSync }: { shi
                                               >
                                                 <div className={cn(
                                                   "w-full h-full p-2 rounded",
-                                                  task ? `bg-gradient-to-r ${taskColors[task.type]}` : "bg-white"
+                                                  task ? `bg-gradient-to-r ${taskThemes[task.type]}` : "bg-white"
                                                 )}>
                                                   {task?.type || '-'}
                                                 </div>
@@ -1466,7 +1471,7 @@ function ArchiveView({ shiftTables, setShiftTables, updateTablesAndSync }: { shi
                                               >
                                                 <div className={cn(
                                                   "w-full h-full p-2 rounded",
-                                                  task ? `bg-gradient-to-r ${taskColors[task.type]}` : "bg-white"
+                                                  task ? `bg-gradient-to-r ${taskThemes[task.type]}` : "bg-white"
                                                 )}>
                                                   {task?.type || '-'}
                                                 </div>
@@ -1494,11 +1499,23 @@ function ArchiveView({ shiftTables, setShiftTables, updateTablesAndSync }: { shi
   )
 }
 
-function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
-  const [selectedCountry, setSelectedCountry] = useState<'Egypt' | 'Morocco'>('Egypt');
-  const [filterType, setFilterType] = useState<'all-time' | 'date-range'>('all-time');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+function AnalyticsView({ 
+  shiftTables, 
+  analyticsFilters, 
+  setAnalyticsFilters 
+}: { 
+  shiftTables: ShiftTable[], 
+  analyticsFilters: {
+    startDate: string | null,
+    endDate: string | null,
+    country: 'Egypt' | 'Morocco',
+    view: string
+  },
+  setAnalyticsFilters: (filters: any) => void 
+}) {
+  const handleFilterChange = (key: string, value: any) => {
+    setAnalyticsFilters({ ...analyticsFilters, [key]: value });
+  };
 
   const timeToMinutes = (timeStr: string) => {
     const [time, period] = timeStr.trim().split(' ');
@@ -1558,10 +1575,10 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
         table.country === country && 
         table.publishedTo === country; // Removed !table.isArchived check
       
-      if (filterType === 'date-range' && startDate && endDate) {
+      if (analyticsFilters.startDate && analyticsFilters.endDate) {
         const tableDate = new Date(table.date);
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        const start = new Date(analyticsFilters.startDate);
+        const end = new Date(analyticsFilters.endDate);
         return isValidTable && tableDate >= start && tableDate <= end;
       }
     
@@ -1626,7 +1643,7 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
     return analytics;
   };
 
-  const uniqueTaskTypes = Array.from(new Set(taskTypesByCountry[selectedCountry]));
+  const uniqueTaskTypes = Array.from(new Set(taskTypesByCountry[analyticsFilters.country]));
 
   return (
     <div className="container mx-auto p-4 space-y-8">
@@ -1640,7 +1657,7 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
             <div className="flex flex-col sm:flex-row gap-4">
               <div>
                 <Label>Country</Label>
-                <Select value={selectedCountry} onValueChange={(value: 'Egypt' | 'Morocco') => setSelectedCountry(value)}>
+                <Select value={analyticsFilters.country} onValueChange={(value: 'Egypt' | 'Morocco') => handleFilterChange('country', value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1652,7 +1669,7 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
               </div>
               <div>
                 <Label>Filter Type</Label>
-                <Select value={filterType} onValueChange={(value: 'all-time' | 'date-range') => setFilterType(value)}>
+                <Select value={analyticsFilters.view} onValueChange={(value: 'all-time' | 'date-range') => handleFilterChange('view', value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1664,22 +1681,22 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
               </div>
             </div>
 
-            {filterType === 'date-range' && (
+            {analyticsFilters.view === 'date-range' && (
               <div className="flex flex-col sm:flex-row gap-4">
                 <div>
                   <Label>Start Date</Label>
                   <Input
                     type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    value={analyticsFilters.startDate || ''}
+                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
                   />
                 </div>
                 <div>
                   <Label>End Date</Label>
                   <Input
                     type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    value={analyticsFilters.endDate || ''}
+                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
                   />
                 </div>
               </div>
@@ -1700,7 +1717,7 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Object.values(calculateAnalytics(shiftTables, selectedCountry)).map((agent) => {
+                {Object.values(calculateAnalytics(shiftTables, analyticsFilters.country)).map((agent) => {
                   const totalHours = uniqueTaskTypes.reduce(
                     (sum, type) => sum + agent.tasks[type],
                     0
@@ -1712,11 +1729,11 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
                       </TableCell>
                       {uniqueTaskTypes.map((type) => (
                         <TableCell key={type} className="text-center">
-                          {agent.tasks[type]}
+                          {Number(agent.tasks[type]).toFixed(1)}
                         </TableCell>
                       ))}
                       <TableCell className="text-center">
-                        {totalHours}
+                        {Number(totalHours).toFixed(1)}
                       </TableCell>
                     </TableRow>
                   );
@@ -1765,11 +1782,25 @@ export default function ModernScheduleMaker() {
   const [shiftTables, setShiftTables] = useState<ShiftTable[]>([])
   const [publishedTables, setPublishedTables] = useState<ShiftTable[]>([])
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [activeTab, setActiveTab] = useState<'admin' | 'egypt' | 'morocco' | 'archive' | 'analytics'>('admin')
+  const [activeTab, setActiveTab] = useState<'admin' | 'egypt' | 'morocco' | 'archive' | 'analytics'>('admin');
+
+  // Load saved tab from localStorage
+  useEffect(() => {
+    const savedTab = localStorage.getItem('activeTab');
+    if (savedTab) {
+      setActiveTab(savedTab as 'admin' | 'egypt' | 'morocco' | 'archive' | 'analytics');
+    }
+  }, []);
+
+  // Save tab to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
+
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [motivationalMessage, setMotivationalMessage] = useState('Welcome to Schedule Maker')
-  const [activeCountries, setActiveCountries] = useState({ Egypt: true, Morocco: false })
+  const [activeCountries, setActiveCountries] = useClientActiveCountries();
   const [pendingChanges, setPendingChanges] = useState(0);
   const [lastNotificationTime, setLastNotificationTime] = useState(0);
   const NOTIFICATION_COOLDOWN = 5000; // 5 seconds cooldown between notifications
@@ -1792,6 +1823,7 @@ export default function ModernScheduleMaker() {
   const updateTablesAndSync = async (newTables: ShiftTable[], showToast: boolean = false) => {
     try {
       setSyncStatus('syncing');
+      
       // Update local states immediately
       setShiftTables(newTables);
       const newPublished = newTables.filter(table => 
@@ -1877,8 +1909,9 @@ export default function ModernScheduleMaker() {
     setIsLoading(true);
     try {
       const tables = await loadShiftTables();
-      setShiftTables(tables);
-      const published = tables.filter(table => 
+      const migratedTables = migrateMoroccoTasks(tables);
+      setShiftTables(migratedTables);
+      const published = migratedTables.filter(table => 
         !table.isArchived && 
         (table.publishedTo === 'Egypt' || table.publishedTo === 'Morocco')
       );
@@ -1890,6 +1923,33 @@ export default function ModernScheduleMaker() {
       setIsLoading(false);
     }
   }, [setShiftTables, setPublishedTables, showNotification]);
+
+  // Add migration function for Morocco tasks
+  const migrateMoroccoTasks = (tables: ShiftTable[]): ShiftTable[] => {
+    return tables.map(table => {
+      if (table.country !== 'Morocco') return table;
+
+      const migratedAgents: Agent[] = table.agents.map(agent => ({
+        ...agent,
+        tasks: agent.tasks.map(task => {
+          if (!task) return null;
+          
+          // Type assertion to ensure we're working with a TaskType
+          const taskType = task.type as TaskType;
+          
+          return {
+            ...task,
+            type: taskType
+          };
+        })
+      }));
+
+      return {
+        ...table,
+        agents: migratedAgents
+      };
+    });
+  };
 
   // Initialize active tab from localStorage after mount
   useEffect(() => {
@@ -1996,6 +2056,11 @@ export default function ModernScheduleMaker() {
     loadAllTables();
   };
 
+  // Save active countries whenever they change
+  useEffect(() => {
+    localStorage.setItem('activeCountries', JSON.stringify(activeCountries));
+  }, [activeCountries, setActiveCountries]);
+
   // Check session status on component mount
   useEffect(() => {
     const checkSession = () => {
@@ -2028,6 +2093,24 @@ export default function ModernScheduleMaker() {
     localStorage.removeItem('sessionExpiry');
     setIsLoggedIn(false);
   };
+
+  const [analyticsFilters, setAnalyticsFilters] = useClientAnalyticsFilters();
+
+  useEffect(() => {
+    localStorage.setItem('analyticsFilters', JSON.stringify(analyticsFilters));
+  }, [analyticsFilters]);
+
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem('activeCountries', JSON.stringify(activeCountries));
+  }, [activeCountries]);
+
+  useEffect(() => {
+    localStorage.setItem('analyticsFilters', JSON.stringify(analyticsFilters));
+  }, [analyticsFilters]);
 
   return (
     <div className="relative min-h-screen">
@@ -2095,13 +2178,21 @@ export default function ModernScheduleMaker() {
                 publishedTables={publishedTables}
                 setPublishedTables={setPublishedTables}
                 updateTablesAndSync={updateTablesAndSync}
+                activeCountries={activeCountries}
+                setActiveCountries={setActiveCountries}
               />
             ) : (
               <LoginForm onLogin={handleLogin} />
             )}
           </TabsContent>
           <TabsContent value="analytics">
-            {isLoggedIn && <AnalyticsView shiftTables={shiftTables} />}
+            {isLoggedIn && (
+              <AnalyticsView 
+                shiftTables={shiftTables} 
+                analyticsFilters={analyticsFilters}
+                setAnalyticsFilters={setAnalyticsFilters}
+              />
+            )}
           </TabsContent>
           <TabsContent value="archive">
             {isLoggedIn && (
