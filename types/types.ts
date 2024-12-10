@@ -9,12 +9,15 @@ export type TaskType =
   | 'Appeals/Reviews/Calls/App follow'
   | 'App follow'
   | 'Break'
+  | 'Sick'
   // Morocco Tasks
-  | 'Chat/Appeals+Reviews'
-  | 'Chat /Emails+Groups+ Calls'
-  | 'Emails ( New ) + Appeals+ Calls'
-  | 'Emails (Need attention) + Reviews + Groups'
-  | 'All tasks + Calls';
+  | 'Morocco_Chat'
+  | 'Morocco_Chat_Appeals'
+  | 'Morocco_Chat_Emails'
+  | 'Morocco_Emails_Appeals'
+  | 'Morocco_Emails_Reviews'
+  | 'Morocco_All_Tasks'
+  | 'Morocco_Break';
 
 export interface Task {
   type: TaskType;
@@ -43,3 +46,28 @@ export interface ShiftTable {
   agents: Agent[];
   senior: string;
 }
+
+export const taskTypesByCountry = {
+  Egypt: [
+    'Chat',
+    'Appeals/Reviews',
+    'Appeals/Reviews/Calls',
+    'Calls',
+    'Calls /App follow',
+    'Emails',
+    'Appeals/Reviews/Calls/App follow',
+    'App follow',
+    'Break',
+    'Sick'
+  ],
+  Morocco: [
+    'Chat',
+    'Chat/Appeals+Reviews',
+    'Chat /Emails+Groups+ Calls',
+    'Emails ( New ) + Appeals+ Calls',
+    'Emails (Need attention) + Reviews + Groups',
+    'All tasks + Calls',
+    'Break',
+    'Sick'
+  ]
+} as const;

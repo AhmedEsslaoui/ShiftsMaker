@@ -52,16 +52,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import Cookies from 'js-cookie'
 import toast from 'react-hot-toast'
-import { loadShiftTables, saveShiftTables } from '@/lib/firebase'
+import { loadShiftTables, saveShiftTables, loadAgents, saveAgents } from '@/lib/firebase'
 import type { ShiftTable, ShiftType, Task, Agent } from '@/types/types'
 import type { TaskType as ImportedTaskType } from '@/types/types'
 
 type TaskType = ImportedTaskType;
-
-const SESSION_COOKIE = 'session_expiry';
-const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 const shiftDetails: Record<ShiftType, { timeRange: string, timeSlots: string[], theme: string }> = {
   'Morning': { 
@@ -109,16 +105,43 @@ const taskTypesByCountry: Record<string, TaskType[]> = {
     'Emails',
     'Appeals/Reviews/Calls/App follow',
     'App follow',
-    'Break'
+    'Break',
+    'Sick'
   ],
   'Morocco': [
-    'Chat',
-    'Chat/Appeals+Reviews',
-    'Chat /Emails+Groups+ Calls',
-    'Emails ( New ) + Appeals+ Calls',
-    'Emails (Need attention) + Reviews + Groups',
-    'All tasks + Calls',
-    'Break'
+    'Morocco_Chat',
+    'Morocco_Chat_Appeals',
+    'Morocco_Chat_Emails',
+    'Morocco_Emails_Appeals',
+    'Morocco_Emails_Reviews',
+    'Morocco_All_Tasks',
+    'Morocco_Break',
+    'Sick'
+  ]
+};
+
+const taskOptions = {
+  Egypt: [
+    { value: 'Chat', label: 'Chat' },
+    { value: 'Appeals/Reviews', label: 'Appeals/Reviews' },
+    { value: 'Appeals/Reviews/Calls', label: 'Appeals/Reviews/Calls' },
+    { value: 'Calls', label: 'Calls' },
+    { value: 'Calls /App follow', label: 'Calls /App follow' },
+    { value: 'Emails', label: 'Emails' },
+    { value: 'Appeals/Reviews/Calls/App follow', label: 'Appeals/Reviews/Calls/App follow' },
+    { value: 'App follow', label: 'App follow' },
+    { value: 'Break', label: 'Break' },
+    { value: 'Sick', label: 'Sick' }
+  ],
+  Morocco: [
+    { value: 'Morocco_Chat', label: 'Chat' },
+    { value: 'Morocco_Chat_Appeals', label: 'Chat/Appeals+Reviews' },
+    { value: 'Morocco_Chat_Emails', label: 'Chat /Emails+Groups+ Calls' },
+    { value: 'Morocco_Emails_Appeals', label: 'Emails ( New ) + Appeals+ Calls' },
+    { value: 'Morocco_Emails_Reviews', label: 'Emails (Need attention) + Reviews + Groups' },
+    { value: 'Morocco_All_Tasks', label: 'All tasks + Calls' },
+    { value: 'Morocco_Break', label: 'Break' },
+    { value: 'Sick', label: 'Sick' }
   ]
 };
 
@@ -133,13 +156,16 @@ const taskColors: Record<TaskType, string> = {
   'Appeals/Reviews/Calls/App follow': 'from-rose-200 to-pink-200',
   'App follow': 'from-sky-200 to-blue-200',
   'Break': 'from-gray-200 to-slate-200',
+  'Sick': 'from-red-200 to-rose-200',
   
   // Morocco Tasks
-  'Chat/Appeals+Reviews': 'from-emerald-200 to-teal-200',
-  'Chat /Emails+Groups+ Calls': 'from-blue-200 to-cyan-200',
-  'Emails ( New ) + Appeals+ Calls': 'from-amber-200 to-yellow-200',
-  'Emails (Need attention) + Reviews + Groups': 'from-violet-200 to-purple-200',
-  'All tasks + Calls': 'from-rose-200 to-pink-200'
+  'Morocco_Chat': 'from-emerald-200 to-teal-200',
+  'Morocco_Chat_Appeals': 'from-blue-200 to-cyan-200',
+  'Morocco_Chat_Emails': 'from-blue-200 to-cyan-200',
+  'Morocco_Emails_Appeals': 'from-amber-200 to-yellow-200',
+  'Morocco_Emails_Reviews': 'from-violet-200 to-purple-200',
+  'Morocco_All_Tasks': 'from-rose-200 to-pink-200',
+  'Morocco_Break': 'from-gray-200 to-slate-200'
 }
 
 const initialAgents = {
@@ -255,73 +281,41 @@ function AdminView({
   const [newAgentName, setNewAgentName] = useState('')
   const [newAgentCountry, setNewAgentCountry] = useState<'Egypt' | 'Morocco'>('Egypt')
 
-  // Load agents from cookies or use initial agents if none saved
+  // Load agents from Firebase
   useEffect(() => {
-    const savedAgents = Cookies.get('agents');
-    if (savedAgents) {
+    const loadSavedAgents = async () => {
       try {
-        const parsedAgents = JSON.parse(savedAgents);
-        setAgents(parsedAgents);
+        const savedAgents = await loadAgents();
+        if (Object.keys(savedAgents).length > 0) {
+          setAgents(savedAgents);
+        }
       } catch (error) {
-        console.error('Error parsing agents:', error);
-        Cookies.remove('agents');
-        setAgents(initialAgents); // Fallback to initial agents if parsing fails
+        console.error('Error loading agents:', error);
+        toast.error('Failed to load agents');
       }
-    }
+    };
+
+    loadSavedAgents();
   }, []);
 
   // Save agents whenever they change
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      Cookies.set('agents', JSON.stringify(agents), { expires: 7 });
-    }
+    const saveAgentsToFirebase = async () => {
+      try {
+        await saveAgents(agents);
+      } catch (error) {
+        console.error('Error saving agents:', error);
+      }
+    };
+
+    saveAgentsToFirebase();
   }, [agents]);
-
-  const saveTableToCookies = (updatedTable: ShiftTable) => {
-    try {
-      // Get current tables from cookies
-      const tempTablesStr = Cookies.get('tempShiftTables');
-      let tempTables = [...shiftTables];
-      
-      if (tempTablesStr) {
-        try {
-          const parsed = JSON.parse(tempTablesStr);
-          if (Array.isArray(parsed)) {
-            tempTables = parsed;
-          }
-        } catch (error) {
-          console.error('Error parsing temp tables:', error);
-        }
-      }
-
-      // Create a deep copy of the updated table to ensure all nested data is captured
-      const tableCopy = JSON.parse(JSON.stringify(updatedTable));
-      
-      // Update or add the table in temp tables
-      const tableIndex = tempTables.findIndex(t => t.id === updatedTable.id);
-      if (tableIndex !== -1) {
-        tempTables[tableIndex] = tableCopy;
-      } else {
-        tempTables.push(tableCopy);
-      }
-
-      // Update local state and cookies
-      const updatedTables = shiftTables.map(table => 
-        table.id === updatedTable.id ? tableCopy : table
-      );
-      setShiftTables(updatedTables);
-      Cookies.set('tempShiftTables', JSON.stringify(tempTables), { expires: 1 });
-    } catch (error) {
-      console.error('Error saving to cookies:', error);
-      toast.error('Failed to save temporary changes');
-    }
-  };
 
   const updateShiftTable = (id: string, field: keyof ShiftTable, value: string | boolean | null) => {
     const updatedTable = shiftTables.find(table => table.id === id);
     if (updatedTable) {
       const newTable = { ...updatedTable, [field]: value };
-      saveTableToCookies(newTable);
+      updateTablesAndSync([newTable]);
     }
   };
 
@@ -336,9 +330,7 @@ function AdminView({
         ...updatedTable, 
         agents: [...updatedTable.agents, newAgent] 
       };
-      updateTablesAndSync(shiftTables.map(table => 
-        table.id === tableId ? newTable : table
-      ));
+      updateTablesAndSync([newTable]);
     }
   };
 
@@ -371,13 +363,24 @@ function AdminView({
     }
   };
 
-  const updateAgentTask = (tableId: string, agentIndex: number, taskIndex: number, taskType: TaskType) => {
-    const updatedTable = shiftTables.find(table => table.id === tableId);
-    if (updatedTable) {
-      const updatedAgents = [...updatedTable.agents];
-      updatedAgents[agentIndex].tasks[taskIndex] = { type: taskType };
-      const newTable = { ...updatedTable, agents: updatedAgents };
-      saveTableToCookies(newTable);
+  const updateAgentTask = async (tableId: string, agentIndex: number, taskIndex: number, taskType: TaskType) => {
+    try {
+      const updatedTables = shiftTables.map(table => {
+        if (table.id === tableId) {
+          const updatedAgents = [...table.agents];
+          if (!updatedAgents[agentIndex].tasks) {
+            updatedAgents[agentIndex].tasks = [];
+          }
+          updatedAgents[agentIndex].tasks[taskIndex] = { type: taskType };
+          return { ...table, agents: updatedAgents };
+        }
+        return table;
+      });
+
+      await updateTablesAndSync(updatedTables);
+    } catch (error) {
+      console.error('Error updating agent task:', error);
+      toast.error('Failed to update task');
     }
   };
 
@@ -396,26 +399,11 @@ function AdminView({
         // Update local state
         setShiftTables(updatedTables);
         
-        // Update in cookies
-        saveTableToCookies(newTable);
-        
         toast.success(`Table ${newTable.isLocked ? 'locked' : 'unlocked'} successfully`);
       } catch (error) {
         console.error('Error updating lock state:', error);
         toast.error('Failed to update lock state');
       }
-    }
-  };
-
-  const updateCookies = (tables: ShiftTable[]) => {
-    try {
-      if (tables.length > 0) {
-        Cookies.set('tempShiftTables', JSON.stringify(tables), { expires: 1 });
-      } else {
-        Cookies.remove('tempShiftTables');
-      }
-    } catch (error) {
-      console.error('Error updating cookies:', error);
     }
   };
 
@@ -448,21 +436,6 @@ function AdminView({
       );
       setPublishedTables(newPublished);
       
-      // Remove from cookies if present
-      const tempTablesStr = Cookies.get('tempShiftTables');
-      if (tempTablesStr) {
-        try {
-          const tempTables = JSON.parse(tempTablesStr);
-          if (Array.isArray(tempTables)) {
-            const updatedTempTables = tempTables.filter(table => table.id !== id);
-            updateCookies(updatedTempTables);
-          }
-        } catch (cookieError) {
-          console.error('Error updating cookies after delete:', cookieError);
-          // Don't throw here as the main operation succeeded
-        }
-      }
-
       toast.success('Table deleted successfully');
     } catch (error) {
       console.error('Error deleting table:', error);
@@ -497,7 +470,7 @@ function AdminView({
 
       // Create updated tables array
       const updatedTables = shiftTables.map(table => 
-        table.id === id ? { ...table, isArchived: true } : table
+        table.id === id ? { ...table, isArchived: !table.isArchived } : table
       );
       
       // Save to Drive first
@@ -521,50 +494,10 @@ function AdminView({
         setPublishedTables(newPublished);
       }
       
-      // Update cookies if present
-      const tempTablesStr = Cookies.get('tempShiftTables');
-      if (tempTablesStr) {
-        try {
-          const tempTables = JSON.parse(tempTablesStr);
-          if (Array.isArray(tempTables)) {
-            const updatedTempTables = tempTables.map(table => 
-              table.id === id ? { ...table, isArchived: true } : table
-            );
-            updateCookies(updatedTempTables);
-          }
-        } catch (cookieError) {
-          console.error('Error updating cookies after archive:', cookieError);
-        }
-      }
-
-      toast.success('Table archived successfully');
+      toast.success(`Table ${updatedTables.find(t => t.id === id)?.isArchived ? 'archived' : 'restored'} successfully`);
     } catch (error) {
       console.error('Error archiving table:', error);
       toast.error('Failed to archive table');
-    }
-  };
-
-  const handleArchiveDay = async (date: string) => {
-    try {
-      // Find tables for the given date
-      const tablesToArchive = shiftTables.filter(table => table.date === date && !table.isArchived)
-      if (tablesToArchive.length === 0) {
-        toast.error('No tables found for the selected date');
-        return;
-      }
-
-      // Create updated tables array and update immediately
-      const updatedTables = shiftTables.map(table => 
-        table.date === date ? { ...table, isArchived: true } : table
-      );
-      
-      // Update states and sync with Firestore
-      await updateTablesAndSync(updatedTables);
-
-      toast.success(`All tables for ${date} archived successfully`);
-    } catch (error) {
-      console.error('Error archiving day:', error);
-      toast.error('Failed to archive day');
     }
   };
 
@@ -731,17 +664,28 @@ function AdminView({
     await updateTablesAndSync(updatedTables);
   };
 
-  const addNewAgent = () => {
+  const addNewAgent = async () => {
     if (newAgentName.trim()) {
-      const updatedAgents = {
-        ...agents,
-        [newAgentCountry]: [...(agents[newAgentCountry] || []), newAgentName.trim()]
-      };
-      
-      setAgents(updatedAgents);
-      Cookies.set('agents', JSON.stringify(updatedAgents), { expires: 7 });
-      setNewAgentName('');
-      toast.success('Agent added successfully');
+      try {
+        const updatedAgents = {
+          ...agents,
+          [newAgentCountry]: [...(agents[newAgentCountry] || []), newAgentName.trim()]
+        };
+        
+        // Save to Firebase
+        await saveAgents(updatedAgents);
+        
+        // Update local state
+        setAgents(updatedAgents);
+        
+        // Clear input
+        setNewAgentName('');
+        
+        toast.success('Agent added successfully');
+      } catch (error) {
+        console.error('Error adding agent:', error);
+        toast.error('Failed to add agent. Please try again.');
+      }
     }
   };
 
@@ -770,13 +714,29 @@ function AdminView({
     };
     
     setActiveCountries(newActiveCountries);
-    Cookies.set('activeCountries', JSON.stringify(newActiveCountries), { expires: 7 });
     toast.success('Country preference saved');
   }
 
   const getAvailableAgents = (tableCountry: 'Egypt' | 'Morocco') => {
     return agents[tableCountry] || initialAgents[tableCountry] || [];
   }
+
+  const TaskSelect = ({ value, onChange, country }: { value: string, onChange: (value: string) => void, country: string }) => {
+    return (
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {taskOptions[country as keyof typeof taskOptions].map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  };
 
   const renderAgentSelect = (shiftTable: ShiftTable, agent: Agent | null, index: number) => {
     const tableAgents = getAvailableAgents(shiftTable.country);
@@ -803,38 +763,25 @@ function AdminView({
             ))}
           </SelectGroup>
         </SelectContent>
-      </Select>
+    </Select>
     );
   };
 
   useEffect(() => {
-    const savedCountries = Cookies.get('activeCountries');
+    const savedCountries = localStorage.getItem('activeCountries');
     if (savedCountries) {
       setActiveCountries(JSON.parse(savedCountries));
     }
 
-    const savedAgents = Cookies.get('agents');
+    const savedAgents = localStorage.getItem('agents');
     if (savedAgents) {
       setAgents(JSON.parse(savedAgents));
     }
   }, []);
 
   useEffect(() => {
-    const tempTables = Cookies.get('tempShiftTables');
-    if (tempTables) {
-      try {
-        const parsed = JSON.parse(tempTables);
-        setShiftTables(parsed);
-      } catch (error) {
-        console.error('Error parsing temporary tables:', error);
-        Cookies.remove('tempShiftTables');
-      }
-    }
-  }, [setShiftTables]);
-
-  useEffect(() => {
     const loadTempChanges = () => {
-      const tempTablesStr = Cookies.get('tempShiftTables');
+      const tempTablesStr = localStorage.getItem('tempShiftTables');
       if (tempTablesStr) {
         try {
           const tempTables = JSON.parse(tempTablesStr);
@@ -849,16 +796,6 @@ function AdminView({
 
     loadTempChanges();
   }, [setShiftTables]);
-
-  const handleSaveTable = async (table: ShiftTable) => {
-    try {
-      await saveShiftTables(shiftTables);
-      toast.success('Changes saved successfully!');
-    } catch (error) {
-      console.error('Error saving changes:', error);
-      toast.error('Failed to save changes');
-    }
-  };
 
   return (
     <div className="container mx-auto p-4 space-y-8">
@@ -945,14 +882,6 @@ function AdminView({
                   day: 'numeric'
                 })}</span>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleArchiveDay(date)}
-                className="hover:bg-purple-100 hover:text-purple-600 transition-colors"
-              >
-                <Archive className="h-4 w-4" />
-              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -993,15 +922,6 @@ function AdminView({
                       <Button 
                         variant="outline"
                         size="sm"
-                        onClick={() => handleSaveTable(shiftTable)}
-                        className="flex items-center gap-2"
-                      >
-                        <Save className="h-4 w-4" />
-                        Save to Drive
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        size="icon"
                         onClick={() => toggleLock(shiftTable.id)}
                         aria-label={shiftTable.isLocked ? "Edit schedule" : "Lock schedule"}
                       >
@@ -1062,56 +982,66 @@ function AdminView({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {shiftTable.agents.map((agent, index) => (
-                          <TableRow key={index}>
-                            <TableCell 
+                        {shiftTable.agents.map((agent, index) => {
+                          const isAgentSick = agent.tasks.some(task => task?.type === 'Sick');
+                          return (
+                            <TableRow 
+                              key={index}
                               className={cn(
-                                "bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-10",
-                                agent.highlight && "bg-orange-200 bg-opacity-60"
+                                isAgentSick && "bg-gray-100"
                               )}
                             >
-                              {shiftTable.isLocked ? (
-                                <span>{agent.name}</span>
-                              ) : (
-                                renderAgentSelect(shiftTable, agent, index)
-                              )}
-                            </TableCell>
-                            {shiftTable.timeSlots.map((_, taskIndex) => (
                               <TableCell 
-                                key={taskIndex} 
-                                className="p-1"
+                                className={cn(
+                                  "bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-10",
+                                  agent.highlight && "bg-orange-200 bg-opacity-60"
+                                )}
                               >
                                 {shiftTable.isLocked ? (
-                                  <div className={cn(
-                                    "w-full h-full p-2 rounded",
-                                    agent.tasks[taskIndex] ? `bg-gradient-to-r ${taskColors[agent.tasks[taskIndex].type]}` : "bg-white"
-                                  )}>
-                                    {agent.tasks[taskIndex]?.type || '-'}
-                                  </div>
+                                  <span>{agent.name}</span>
                                 ) : (
-                                  <Select
-                                    value={agent.tasks[taskIndex]?.type || ''}
-                                    onValueChange={(value: TaskType) => updateAgentTask(shiftTable.id, index, taskIndex, value)}
-                                  >
-                                    <SelectTrigger className={cn(
-                                      "w-full h-full border-0 focus:ring-0",
-                                      agent.tasks[taskIndex] ? `bg-gradient-to-r ${taskColors[agent.tasks[taskIndex].type]}` : "bg-white"
-                                    )}>
-                                      <SelectValue placeholder="Select task" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {taskTypesByCountry[shiftTable.country].map((type) => (
-                                        <SelectItem key={type} value={type}>
-                                          {type}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                  renderAgentSelect(shiftTable, agent, index)
                                 )}
                               </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
+                              {shiftTable.timeSlots.map((_, taskIndex) => (
+                                <TableCell 
+                                  key={taskIndex} 
+                                  className="p-1"
+                                >
+                                  {shiftTable.isLocked ? (
+                                    <div className={cn(
+                                      "w-full h-full p-2 rounded",
+                                      agent.tasks[taskIndex] ? `bg-gradient-to-r ${taskColors[agent.tasks[taskIndex].type]}` : "bg-white"
+                                    )}>
+                                      {agent.tasks[taskIndex]?.type || '-'}
+                                    </div>
+                                  ) : (
+                                    <div className="h-full">
+                                      <Select
+                                        value={agent.tasks[taskIndex]?.type || ''}
+                                        onValueChange={(value: TaskType) => updateAgentTask(shiftTable.id, index, taskIndex, value)}
+                                      >
+                                        <SelectTrigger className={cn(
+                                          "w-full h-full border-0 focus:ring-0",
+                                          agent.tasks[taskIndex] ? `bg-gradient-to-r ${taskColors[agent.tasks[taskIndex].type]}` : "bg-white"
+                                        )}>
+                                          <SelectValue placeholder="Select task" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {taskTypesByCountry[shiftTable.country].map((type) => (
+                                            <SelectItem key={type} value={type}>
+                                              {type}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  )}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
@@ -1420,31 +1350,39 @@ function ArchiveView({ shiftTables, setShiftTables, updateTablesAndSync }: { shi
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                      {shiftTable.agents.map((agent, agentIndex) => (
-                                        <TableRow key={agentIndex}>
-                                          <TableCell 
+                                      {shiftTable.agents.map((agent, agentIndex) => {
+                                        const isAgentSick = agent.tasks.some(task => task?.type === 'Sick');
+                                        return (
+                                          <TableRow 
+                                            key={agentIndex}
                                             className={cn(
-                                              "bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-10",
-                                              agent.highlight && "bg-orange-200 bg-opacity-60"
+                                              isAgentSick && "bg-gray-100"
                                             )}
                                           >
-                                            <span>{agent.name}</span>
-                                          </TableCell>
-                                          {agent.tasks.map((task, taskIndex) => (
                                             <TableCell 
-                                              key={taskIndex} 
-                                              className="p-1"
+                                              className={cn(
+                                                "bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-10",
+                                                agent.highlight && "bg-orange-200 bg-opacity-60"
+                                              )}
                                             >
-                                              <div className={cn(
-                                                "w-full h-full p-2 rounded",
-                                                task ? `bg-gradient-to-r ${taskColors[task.type]}` : "bg-white"
-                                              )}>
-                                                {task?.type || '-'}
-                                              </div>
+                                              <span>{agent.name}</span>
                                             </TableCell>
-                                          ))}
-                                        </TableRow>
-                                      ))}
+                                            {agent.tasks.map((task, taskIndex) => (
+                                              <TableCell 
+                                                key={taskIndex} 
+                                                className="p-1"
+                                              >
+                                                <div className={cn(
+                                                  "w-full h-full p-2 rounded",
+                                                  task ? `bg-gradient-to-r ${taskColors[task.type]}` : "bg-white"
+                                                )}>
+                                                  {task?.type || '-'}
+                                                </div>
+                                              </TableCell>
+                                            ))}
+                                          </TableRow>
+                                        );
+                                      })}
                                     </TableBody>
                                   </Table>
                                 </div>
@@ -1504,31 +1442,39 @@ function ArchiveView({ shiftTables, setShiftTables, updateTablesAndSync }: { shi
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                      {shiftTable.agents.map((agent, agentIndex) => (
-                                        <TableRow key={agentIndex}>
-                                          <TableCell 
+                                      {shiftTable.agents.map((agent, agentIndex) => {
+                                        const isAgentSick = agent.tasks.some(task => task?.type === 'Sick');
+                                        return (
+                                          <TableRow 
+                                            key={agentIndex}
                                             className={cn(
-                                              "bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-10",
-                                              agent.highlight && "bg-orange-200 bg-opacity-60"
+                                              isAgentSick && "bg-gray-100"
                                             )}
                                           >
-                                            <span>{agent.name}</span>
-                                          </TableCell>
-                                          {agent.tasks.map((task, taskIndex) => (
                                             <TableCell 
-                                              key={taskIndex} 
-                                              className="p-1"
+                                              className={cn(
+                                                "bg-white bg-opacity-30 backdrop-blur-sm sticky left-0 z-10",
+                                                agent.highlight && "bg-orange-200 bg-opacity-60"
+                                              )}
                                             >
-                                              <div className={cn(
-                                                "w-full h-full p-2 rounded",
-                                                task ? `bg-gradient-to-r ${taskColors[task.type]}` : "bg-white"
-                                              )}>
-                                                {task?.type || '-'}
-                                              </div>
+                                              <span>{agent.name}</span>
                                             </TableCell>
-                                          ))}
-                                        </TableRow>
-                                      ))}
+                                            {agent.tasks.map((task, taskIndex) => (
+                                              <TableCell 
+                                                key={taskIndex} 
+                                                className="p-1"
+                                              >
+                                                <div className={cn(
+                                                  "w-full h-full p-2 rounded",
+                                                  task ? `bg-gradient-to-r ${taskColors[task.type]}` : "bg-white"
+                                                )}>
+                                                  {task?.type || '-'}
+                                                </div>
+                                              </TableCell>
+                                            ))}
+                                          </TableRow>
+                                        );
+                                      })}
                                     </TableBody>
                                   </Table>
                                 </div>
@@ -1549,10 +1495,10 @@ function ArchiveView({ shiftTables, setShiftTables, updateTablesAndSync }: { shi
 }
 
 function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
-  const [selectedCountry, setSelectedCountry] = useState<'Egypt' | 'Morocco'>('Egypt')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [filterType, setFilterType] = useState<'date-range' | 'all-time'>('all-time')
+  const [selectedCountry, setSelectedCountry] = useState<'Egypt' | 'Morocco'>('Egypt');
+  const [filterType, setFilterType] = useState<'all-time' | 'date-range'>('all-time');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const timeToMinutes = (timeStr: string) => {
     const [time, period] = timeStr.trim().split(' ');
@@ -1561,45 +1507,75 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
     if (period === 'PM' && hours !== 12) hours += 12;
     if (period === 'AM' && hours === 12) hours = 0;
     
-    return hours * 60 + minutes;
+    return hours * 60 + (minutes || 0); // Handle cases where minutes might be undefined
   };
 
   const calculateDuration = (startTime: string, endTime: string) => {
     const startMinutes = timeToMinutes(startTime);
-    const endMinutes = timeToMinutes(endTime);
+    let endMinutes = timeToMinutes(endTime);
+    
+    // Handle cross-midnight shifts
+    if (endMinutes < startMinutes) {
+      endMinutes += 24 * 60; // Add 24 hours worth of minutes
+    }
+    
     return (endMinutes - startMinutes) / 60;
   };
 
   const calculateTaskHours = (table: ShiftTable, agent: Agent, taskType: TaskType) => {
+    if (!agent.tasks || !table.timeSlots) return 0;
+    
     let totalHours = 0;
     
     agent.tasks.forEach((task, index) => {
       if (task?.type === taskType && table.timeSlots[index]) {
         const timeRange = table.timeSlots[index];
-        const [startTime, endTime] = timeRange.split(' - ');
+        const [startTime, endTime] = timeRange.split('-').map(t => t.trim());
         if (startTime && endTime) {
-          totalHours += calculateDuration(startTime, endTime);
+          // Extract just the time part (remove AM/PM)
+          const startParts = startTime.split(':');
+          const endParts = endTime.split(':');
+          if (startParts.length === 2 && endParts.length === 2) {
+            const hours = calculateDuration(startTime, endTime);
+            console.log(`${agent.name} - ${taskType} for slot ${timeRange}: ${hours} hours`);
+            if (hours > 0) {
+              totalHours += hours;
+            }
+          }
         }
       }
     });
     
+    console.log(`Total hours for ${agent.name} - ${taskType}: ${totalHours}`);
     return Number(totalHours.toFixed(2));
   };
 
   const calculateAnalytics = (tables: ShiftTable[], country: 'Egypt' | 'Morocco') => {
+    console.log(`Starting analytics calculation for ${country}`);
+    
     const filteredTables = tables.filter(table => {
-      if (table.publishedTo !== country || table.isArchived) return false;
+      const isValidTable = 
+        table.country === country && 
+        table.publishedTo === country; // Removed !table.isArchived check
       
       if (filterType === 'date-range' && startDate && endDate) {
         const tableDate = new Date(table.date);
         const start = new Date(startDate);
         const end = new Date(endDate);
-        return tableDate >= start && tableDate <= end;
+        return isValidTable && tableDate >= start && tableDate <= end;
       }
-      
-      return true;
+    
+      return isValidTable;
     });
 
+    console.log(`Found ${filteredTables.length} valid tables for ${country}`, {
+      tables: filteredTables.map(t => ({
+        date: t.date,
+        archived: t.isArchived,
+        agentCount: t.agents.length
+      }))
+    });
+    
     const analytics: Record<string, { 
       name: string, 
       tasks: Record<TaskType, number>,
@@ -1607,26 +1583,50 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
     }> = {};
 
     filteredTables.forEach(table => {
+      console.log(`Processing table: ${table.date}, Shift: ${table.shiftType}`);
+    
       table.agents.forEach(agent => {
+        if (!agent.name) return;
+        
+        // Initialize agent analytics if not exists
         if (!analytics[agent.name]) {
           analytics[agent.name] = {
             name: agent.name,
             tasks: taskTypesByCountry[country].reduce((acc, type) => {
-              acc[type] = calculateTaskHours(table, agent, type);
+              acc[type] = 0;
               return acc;
             }, {} as Record<TaskType, number>),
             breakHours: 0
           };
-        } else {
-          taskTypesByCountry[country].forEach(type => {
-            analytics[agent.name].tasks[type] += calculateTaskHours(table, agent, type);
-          });
         }
+
+        // Process each task
+        agent.tasks.forEach((task, index) => {
+          if (task && table.timeSlots[index]) {
+            const timeRange = table.timeSlots[index];
+            const [startTime, endTime] = timeRange.split('-').map(t => t.trim());
+            
+            if (startTime && endTime) {
+              const hours = calculateDuration(startTime, endTime);
+              if (hours > 0) {
+                console.log(`Adding ${hours} hours for ${agent.name} - ${task.type} (${timeRange})`);
+                analytics[agent.name].tasks[task.type] += hours;
+                
+                if (task.type === 'Sick') {
+                  analytics[agent.name].breakHours += hours;
+                }
+              }
+            }
+          }
+        });
       });
     });
 
+    console.log('Final analytics:', analytics);
     return analytics;
   };
+
+  const uniqueTaskTypes = Array.from(new Set(taskTypesByCountry[selectedCountry]));
 
   return (
     <div className="container mx-auto p-4 space-y-8">
@@ -1638,11 +1638,11 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
         <CardContent>
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
+              <div>
                 <Label>Country</Label>
                 <Select value={selectedCountry} onValueChange={(value: 'Egypt' | 'Morocco') => setSelectedCountry(value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select country" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Egypt">Egypt</SelectItem>
@@ -1650,11 +1650,11 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex-1">
+              <div>
                 <Label>Filter Type</Label>
-                <Select value={filterType} onValueChange={(value: 'date-range' | 'all-time') => setFilterType(value)}>
+                <Select value={filterType} onValueChange={(value: 'all-time' | 'date-range') => setFilterType(value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select filter type" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all-time">All Time</SelectItem>
@@ -1666,7 +1666,7 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
 
             {filterType === 'date-range' && (
               <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1">
+                <div>
                   <Label>Start Date</Label>
                   <Input
                     type="date"
@@ -1674,7 +1674,7 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
                     onChange={(e) => setStartDate(e.target.value)}
                   />
                 </div>
-                <div className="flex-1">
+                <div>
                   <Label>End Date</Label>
                   <Input
                     type="date"
@@ -1690,27 +1690,37 @@ function AnalyticsView({ shiftTables }: { shiftTables: ShiftTable[] }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Agent Name</TableHead>
-                  {taskTypesByCountry[selectedCountry].map((type) => (
-                    <TableHead key={type}>{type}</TableHead>
+                  <TableHead className="bg-white sticky left-0">Agent Name</TableHead>
+                  {uniqueTaskTypes.map((type) => (
+                    <TableHead key={type} className="text-center">
+                      {type}
+                    </TableHead>
                   ))}
-                  <TableHead>Break</TableHead>
-                  <TableHead>Total Hours</TableHead>
+                  <TableHead className="text-center">Total Hours</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Object.values(calculateAnalytics(shiftTables, selectedCountry)).map((agent) => (
-                  <TableRow key={agent.name}>
-                    <TableCell>{agent.name}</TableCell>
-                    {taskTypesByCountry[selectedCountry].map((type) => (
-                      <TableCell key={type}>{agent.tasks[type]}</TableCell>
-                    ))}
-                    <TableCell>{agent.breakHours}</TableCell>
-                    <TableCell>
-                      {Number(Object.values(agent.tasks).reduce((a, b) => a + b, 0).toFixed(2))}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {Object.values(calculateAnalytics(shiftTables, selectedCountry)).map((agent) => {
+                  const totalHours = uniqueTaskTypes.reduce(
+                    (sum, type) => sum + agent.tasks[type],
+                    0
+                  );
+                  return (
+                    <TableRow key={agent.name}>
+                      <TableCell className="bg-white sticky left-0 font-medium">
+                        {agent.name}
+                      </TableCell>
+                      {uniqueTaskTypes.map((type) => (
+                        <TableCell key={type} className="text-center">
+                          {agent.tasks[type]}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-center">
+                        {totalHours}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -1760,15 +1770,114 @@ export default function ModernScheduleMaker() {
   const [isSaving, setIsSaving] = useState(false)
   const [motivationalMessage, setMotivationalMessage] = useState('Welcome to Schedule Maker')
   const [activeCountries, setActiveCountries] = useState({ Egypt: true, Morocco: false })
+  const [pendingChanges, setPendingChanges] = useState(0);
+  const [lastNotificationTime, setLastNotificationTime] = useState(0);
+  const NOTIFICATION_COOLDOWN = 5000; // 5 seconds cooldown between notifications
+
+  const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    const now = Date.now();
+    if (now - lastNotificationTime > NOTIFICATION_COOLDOWN) {
+      if (type === 'success') {
+        toast.success(message);
+      } else {
+        toast.error(message);
+      }
+      setLastNotificationTime(now);
+    }
+  }, [lastNotificationTime]);
+
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+
+  const updateTablesAndSync = async (newTables: ShiftTable[], showToast: boolean = false) => {
+    try {
+      setSyncStatus('syncing');
+      // Update local states immediately
+      setShiftTables(newTables);
+      const newPublished = newTables.filter(table => 
+        !table.isArchived && 
+        (table.publishedTo === 'Egypt' || table.publishedTo === 'Morocco')
+      );
+      setPublishedTables(newPublished);
+
+      // Save to Firebase
+      await saveShiftTables(newTables);
+      setSyncStatus('synced');
+      setLastSyncTime(new Date());
+      
+      if (showToast) {
+        showNotification('Changes saved successfully');
+      }
+    } catch (error) {
+      console.error('Error updating tables:', error);
+      setSyncStatus('error');
+      showNotification('Failed to save changes', 'error');
+      throw error;
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (syncStatus) {
+      case 'synced': return 'text-green-500';
+      case 'syncing': return 'text-yellow-500';
+      case 'error': return 'text-red-500';
+      default: return 'text-gray-500';
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (syncStatus) {
+      case 'synced':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        );
+      case 'syncing':
+        return (
+          <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        );
+      case 'error':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+    }
+  };
+
+  const getStatusText = () => {
+    switch (syncStatus) {
+      case 'synced':
+        return `Synced${lastSyncTime ? ` at ${lastSyncTime.toLocaleTimeString()}` : ''}`;
+      case 'syncing':
+        return 'Syncing...';
+      case 'error':
+        return 'Sync failed';
+      default:
+        return 'Unknown status';
+    }
+  };
+
+  const SyncStatusIndicator = () => {
+    return (
+      <div className="flex items-center space-x-2 text-sm">
+        <span className={`flex items-center ${getStatusColor()}`}>
+          {getStatusIcon()}
+        </span>
+        <span className={`${getStatusColor()} hidden sm:inline`}>{getStatusText()}</span>
+      </div>
+    );
+  };
 
   // Function to load all tables from Firestore
-  const loadAllTables = async () => {
+  const loadAllTables = useCallback(async () => {
     setIsLoading(true);
     try {
       const tables = await loadShiftTables();
-      // Set all tables for admin view
       setShiftTables(tables);
-      // Set published tables separately
       const published = tables.filter(table => 
         !table.isArchived && 
         (table.publishedTo === 'Egypt' || table.publishedTo === 'Morocco')
@@ -1776,46 +1885,101 @@ export default function ModernScheduleMaker() {
       setPublishedTables(published);
     } catch (error) {
       console.error('Error loading tables:', error);
-      toast.error('Failed to load tables');
+      showNotification('Failed to load tables', 'error');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [setShiftTables, setPublishedTables, showNotification]);
 
   // Initialize active tab from localStorage after mount
   useEffect(() => {
-    const savedTab = localStorage.getItem('activeTab');
-    if (savedTab && ['admin', 'egypt', 'morocco', 'archive', 'analytics'].includes(savedTab)) {
-      setActiveTab(savedTab as 'admin' | 'egypt' | 'morocco' | 'archive' | 'analytics');
+    if (isLoggedIn) {
+      loadAllTables();
     }
-    // Load tables when component mounts
-    loadAllTables();
-  }, []);
+  }, [isLoggedIn, loadAllTables]);
 
   // Function to update both states instantly and sync with Firestore
-  const updateTablesAndSync = async (newTables: ShiftTable[]) => {
-    // Update local states immediately
-    setShiftTables(newTables);
-    const newPublished = newTables.filter(table => 
-      !table.isArchived && 
-      (table.publishedTo === 'Egypt' || table.publishedTo === 'Morocco')
-    );
-    setPublishedTables(newPublished);
-
-    // Start saving animation
-    setIsSaving(true);
-
+  const handlePublishTable = async (id: string) => {
     try {
-      // Save to Firestore
-      await saveShiftTables(newTables);
-      toast.success('Changes saved successfully');
-      // Reload tables to ensure consistency
-      await loadAllTables();
+      const table = shiftTables.find(t => t.id === id);
+      if (!table) return;
+
+      const updatedTables = shiftTables.map(table => 
+        table.id === id ? { ...table, publishedTo: table.publishedTo ? null : table.country } : table
+      );
+      
+      await updateTablesAndSync(updatedTables, true);
     } catch (error) {
-      console.error('Error saving tables:', error);
-      toast.error('Failed to save changes');
-    } finally {
-      setIsSaving(false);
+      console.error('Error publishing table:', error);
+      showNotification('Failed to publish table', 'error');
+    }
+  };
+
+  const handleArchiveTable = async (id: string) => {
+    try {
+      const updatedTables = shiftTables.map(table => 
+        table.id === id ? { ...table, isArchived: !table.isArchived } : table
+      );
+      
+      await updateTablesAndSync(updatedTables, true);
+    } catch (error) {
+      console.error('Error archiving table:', error);
+      showNotification('Failed to archive table', 'error');
+    }
+  };
+
+  const updateAgentTask = async (tableId: string, agentIndex: number, taskIndex: number, taskType: TaskType) => {
+    try {
+      const updatedTables = shiftTables.map(table => {
+        if (table.id === tableId) {
+          const updatedAgents = [...table.agents];
+          if (!updatedAgents[agentIndex].tasks) {
+            updatedAgents[agentIndex].tasks = [];
+          }
+          updatedAgents[agentIndex].tasks[taskIndex] = { type: taskType };
+          return { ...table, agents: updatedAgents };
+        }
+        return table;
+      });
+
+      await updateTablesAndSync(updatedTables, false); // Don't show notification for task updates
+    } catch (error) {
+      console.error('Error updating agent task:', error);
+      showNotification('Failed to update task', 'error');
+    }
+  };
+
+  const updateAgentName = async (tableId: string, agentIndex: number, name: string) => {
+    try {
+      const updatedTables = shiftTables.map(table => {
+        if (table.id === tableId) {
+          const updatedAgents = [...table.agents];
+          if (!updatedAgents[agentIndex]) {
+            updatedAgents[agentIndex] = { name, tasks: [] };
+          } else {
+            updatedAgents[agentIndex] = { ...updatedAgents[agentIndex], name };
+          }
+          return { ...table, agents: updatedAgents };
+        }
+        return table;
+      });
+
+      await updateTablesAndSync(updatedTables, false); // Don't show notification for name updates
+    } catch (error) {
+      console.error('Error updating agent name:', error);
+      showNotification('Failed to update agent', 'error');
+    }
+  };
+
+  const removeShiftTable = async (id: string) => {
+    if (!id) return;
+    
+    try {
+      const updatedTables = shiftTables.filter(table => table.id !== id);
+      await updateTablesAndSync(updatedTables, true); // Show notification for table deletion
+    } catch (error) {
+      console.error('Error deleting table:', error);
+      showNotification('Failed to delete table', 'error');
     }
   };
 
@@ -1836,18 +2000,16 @@ export default function ModernScheduleMaker() {
   // Check session status on component mount
   useEffect(() => {
     const checkSession = () => {
-      const sessionExpiry = Cookies.get(SESSION_COOKIE);
+      const sessionExpiry = localStorage.getItem('sessionExpiry');
       if (sessionExpiry) {
         const expiryTime = parseInt(sessionExpiry);
         if (Date.now() < expiryTime) {
           setIsLoggedIn(true);
-          const newExpiryTime = Date.now() + SESSION_DURATION;
-          Cookies.set(SESSION_COOKIE, newExpiryTime.toString(), {
-            expires: new Date(newExpiryTime)
-          });
+          const newExpiryTime = Date.now() + 86400000;
+          localStorage.setItem('sessionExpiry', newExpiryTime.toString());
         } else {
           setIsLoggedIn(false);
-          Cookies.remove(SESSION_COOKIE);
+          localStorage.removeItem('sessionExpiry');
         }
       }
     };
@@ -1858,15 +2020,13 @@ export default function ModernScheduleMaker() {
   }, []);
 
   const handleLogin = () => {
-    const expiryTime = Date.now() + SESSION_DURATION;
-    Cookies.set(SESSION_COOKIE, expiryTime.toString(), {
-      expires: new Date(expiryTime)
-    });
+    const expiryTime = Date.now() + 86400000;
+    localStorage.setItem('sessionExpiry', expiryTime.toString());
     setIsLoggedIn(true);
   };
 
   const handleLogout = () => {
-    Cookies.remove(SESSION_COOKIE);
+    localStorage.removeItem('sessionExpiry');
     setIsLoggedIn(false);
   };
 
@@ -1909,6 +2069,10 @@ export default function ModernScheduleMaker() {
           <p className="mt-2 text-lg text-gray-600 animate-fade-in">
             {motivationalMessage}
           </p>
+        </div>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold text-gray-900">Schedule Maker</h1>
+          <SyncStatusIndicator />
         </div>
         <Tabs value={activeTab} className="space-y-4" onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-5">
