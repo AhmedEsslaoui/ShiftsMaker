@@ -64,31 +64,31 @@ type TaskType = ImportedTaskType;
 
 const shiftDetails: Record<ShiftType, { timeRange: string, timeSlots: string[], theme: string }> = {
   'Morning': { 
-    timeRange: '8 AM to 4 PM', 
-    timeSlots: ['8:00-9:00', '9:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00', '13:00-14:00', '14:00-15:00', '15:00-16:00'], 
-    theme: 'from-yellow-100 to-orange-100' 
+    timeRange: '08:00 to 16:00', 
+    timeSlots: ['08:00-09:00', '09:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00', '13:00-14:00', '14:00-15:00', '15:00-16:00'], 
+    theme: 'from-yellow-50 to-yellow-100 hover:to-yellow-200'
   },
   'Day': { 
-    timeRange: '4 PM to 12 AM', 
+    timeRange: '16:00 to 00:00', 
     timeSlots: ['16:00-17:00', '17:00-18:00', '18:00-19:00', '19:00-20:00', '20:00-21:00', '21:00-22:00', '22:00-23:00', '23:00-00:00'], 
-    theme: 'from-green-100 to-emerald-100' 
+    theme: 'from-blue-50 to-blue-100 hover:to-blue-200'
   },
-  'Afternoon': { 
-    timeRange: '12 PM to 8 PM', 
-    timeSlots: ['12:00-13:00', '13:00-14:00', '14:00-15:00', '15:00-16:00', '16:00-17:00', '17:00-18:00', '18:00-19:00', '19:00-20:00'], 
-    theme: 'from-blue-100 to-cyan-100' 
+  'Afternoon': {
+    timeRange: '12:00 to 20:00',
+    timeSlots: ['12:00-13:00', '13:00-14:00', '14:00-15:00', '15:00-16:00', '16:00-17:00', '17:00-18:00', '18:00-19:00', '19:00-20:00'],
+    theme: 'from-orange-50 to-orange-100 hover:to-orange-200'
   },
-  'Evening': { 
-    timeRange: '8 PM to 4 AM', 
-    timeSlots: ['20:00-21:00', '21:00-22:00', '22:00-23:00', '23:00-00:00', '00:00-01:00', '01:00-02:00', '02:00-03:00', '03:00-04:00'], 
-    theme: 'from-purple-100 to-pink-100' 
+  'Evening': {
+    timeRange: '20:00 to 04:00',
+    timeSlots: ['20:00-21:00', '21:00-22:00', '22:00-23:00', '23:00-00:00', '00:00-01:00', '01:00-02:00', '02:00-03:00', '03:00-04:00'],
+    theme: 'from-purple-50 to-purple-100 hover:to-purple-200'
   },
-  'Night': { 
-    timeRange: '12 AM to 8 AM', 
-    timeSlots: ['00:00-01:00', '01:00-02:00', '02:00-03:00', '03:00-04:00', '04:00-05:00', '05:00-06:00', '06:00-07:00', '07:00-08:00'], 
-    theme: 'from-gray-100 to-slate-200' 
-  },
-}
+  'Night': {
+    timeRange: '00:00 to 08:00',
+    timeSlots: ['00:00-01:00', '01:00-02:00', '02:00-03:00', '03:00-04:00', '04:00-05:00', '05:00-06:00', '06:00-07:00', '07:00-08:00'],
+    theme: 'from-indigo-50 to-indigo-100 hover:to-indigo-200'
+  }
+};
 
 const shiftOrder: Record<ShiftType, number> = {
   'Morning': 0,
@@ -529,10 +529,9 @@ function AdminView({
   };
 
   const formatTime = useCallback((hour: number, minute: number = 0): string => {
-    const period = hour < 12 ? 'AM' : 'PM';
-    const displayHour = hour % 12 || 12;
+    const displayHour = hour.toString().padStart(2, '0');
     const displayMinute = minute.toString().padStart(2, '0');
-    return `${displayHour}:${displayMinute} ${period}`;
+    return `${displayHour}:${displayMinute}`;
   }, []);
 
   const validateSplitInterval = (interval: number, shiftType: ShiftType) => {
@@ -577,10 +576,7 @@ function AdminView({
   const generateTimeSlots = useCallback((shiftType: ShiftType, interval: number) => {
     const shift = shiftDetails[shiftType];
     const [startTime] = shift.timeRange.split(' to ');
-    let [startHour, period] = startTime.split(' ');
-    let currentHour = parseInt(startHour);
-    if (period === 'PM' && currentHour !== 12) currentHour += 12;
-    if (period === 'AM' && currentHour === 12) currentHour = 0;
+    let currentHour = parseInt(startTime.split(':')[0]);
     
     const slots: string[] = [];
     let currentMinutes = 0;
@@ -597,10 +593,13 @@ function AdminView({
       let endH = currentHour + Math.floor(totalMinutes / 60);
       let endM = Math.floor(totalMinutes % 60);
       
+      // Handle midnight crossing
+      if (endH >= 24) endH -= 24;
+      
       const formattedStart = formatTime(startH, startM);
       const formattedEnd = formatTime(endH, endM);
       
-      slots.push(`${formattedStart} - ${formattedEnd}`);
+      slots.push(`${formattedStart}-${formattedEnd}`);
       
       // Update current time for next slot
       currentHour = endH;
@@ -1578,25 +1577,20 @@ function AnalyticsView({
   };
 
   const timeToMinutes = (timeStr: string) => {
-    const [time, period] = timeStr.trim().split(' ');
-    let [hours, minutes] = time.split(':').map(Number);
-    
-    if (period === 'PM' && hours !== 12) hours += 12;
-    if (period === 'AM' && hours === 12) hours = 0;
-    
-    return hours * 60 + (minutes || 0); // Handle cases where minutes might be undefined
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
   };
 
   const calculateDuration = (startTime: string, endTime: string) => {
-    const startMinutes = timeToMinutes(startTime);
-    let endMinutes = timeToMinutes(endTime);
+    const start = timeToMinutes(startTime);
+    let end = timeToMinutes(endTime);
     
-    // Handle cross-midnight shifts
-    if (endMinutes < startMinutes) {
-      endMinutes += 24 * 60; // Add 24 hours worth of minutes
+    // If end time is less than start time, it means we've crossed midnight
+    if (end < start) {
+      end += 24 * 60; // Add 24 hours
     }
     
-    return (endMinutes - startMinutes) / 60;
+    return (end - start) / 60; // Convert minutes to hours
   };
 
   const calculateTaskHours = (table: ShiftTable, agent: Agent, taskType: TaskType) => {
@@ -1609,15 +1603,10 @@ function AnalyticsView({
         const timeRange = table.timeSlots[index];
         const [startTime, endTime] = timeRange.split('-').map(t => t.trim());
         if (startTime && endTime) {
-          // Extract just the time part (remove AM/PM)
-          const startParts = startTime.split(':');
-          const endParts = endTime.split(':');
-          if (startParts.length === 2 && endParts.length === 2) {
-            const hours = calculateDuration(startTime, endTime);
-            console.log(`${agent.name} - ${taskType} for slot ${timeRange}: ${hours} hours`);
-            if (hours > 0) {
-              totalHours += hours;
-            }
+          const hours = calculateDuration(startTime, endTime);
+          console.log(`${agent.name} - ${taskType} for slot ${timeRange}: ${hours} hours`);
+          if (hours > 0) {
+            totalHours += hours;
           }
         }
       }
@@ -1631,25 +1620,26 @@ function AnalyticsView({
     console.log(`Starting analytics calculation for ${country}`);
     
     const filteredTables = tables.filter(table => {
-      const isValidTable = 
-        table.country === country && 
-        table.publishedTo === country; // Removed !table.isArchived check
+      // Base condition for valid table
+      const isValidTable = table.country === country && table.publishedTo === country;
       
-      if (analyticsFilters.startDate && analyticsFilters.endDate) {
-        const tableDate = new Date(table.date);
-        const start = new Date(analyticsFilters.startDate);
-        const end = new Date(analyticsFilters.endDate);
-        return isValidTable && tableDate >= start && tableDate <= end;
+      // If no date filters, just use base condition
+      if (!analyticsFilters.startDate || !analyticsFilters.endDate) {
+        return isValidTable;
       }
-    
-      return isValidTable;
+      
+      // If we have date filters, check the date range
+      const tableDate = new Date(table.date);
+      const start = new Date(analyticsFilters.startDate);
+      const end = new Date(analyticsFilters.endDate);
+      
+      return isValidTable && tableDate >= start && tableDate <= end;
     });
 
     console.log(`Found ${filteredTables.length} valid tables for ${country}`, {
       tables: filteredTables.map(t => ({
         date: t.date,
-        archived: t.isArchived,
-        agentCount: t.agents.length
+        agentCount: t.agents?.length || 0
       }))
     });
     
@@ -1660,10 +1650,12 @@ function AnalyticsView({
     }> = {};
 
     filteredTables.forEach(table => {
+      if (!table.agents) return;
+      
       console.log(`Processing table: ${table.date}, Shift: ${table.shiftType}`);
     
       table.agents.forEach(agent => {
-        if (!agent.name) return;
+        if (!agent.name || !agent.tasks) return;
         
         // Initialize agent analytics if not exists
         if (!analytics[agent.name]) {
@@ -1679,19 +1671,19 @@ function AnalyticsView({
 
         // Process each task
         agent.tasks.forEach((task, index) => {
-          if (task && table.timeSlots[index]) {
-            const timeRange = table.timeSlots[index];
-            const [startTime, endTime] = timeRange.split('-').map(t => t.trim());
-            
-            if (startTime && endTime) {
-              const hours = calculateDuration(startTime, endTime);
-              if (hours > 0) {
-                console.log(`Adding ${hours} hours for ${agent.name} - ${task.type} (${timeRange})`);
-                analytics[agent.name].tasks[task.type] += hours;
-                
-                if (task.type === 'Sick') {
-                  analytics[agent.name].breakHours += hours;
-                }
+          if (!task || !task.type || !table.timeSlots || !table.timeSlots[index]) return;
+          
+          const timeRange = table.timeSlots[index];
+          const [startTime, endTime] = timeRange.split('-').map(t => t.trim());
+          
+          if (startTime && endTime) {
+            const hours = calculateDuration(startTime, endTime);
+            if (hours > 0) {
+              console.log(`Adding ${hours} hours for ${agent.name} - ${task.type} (${timeRange})`);
+              analytics[agent.name].tasks[task.type] += hours;
+              
+              if (task.type === 'Break' || task.type === 'Sick') {
+                analytics[agent.name].breakHours += hours;
               }
             }
           }
