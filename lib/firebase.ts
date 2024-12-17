@@ -55,31 +55,17 @@ function mergeData(currentData: any, newData: any) {
     return newData;
   }
 
-  interface TableWithTimestamp {
-    id: string;
-    lastModified: number;
-  }
-
-  const currentTables = new Map<string, TableWithTimestamp>(
-    currentData.tables.map((table: TableWithTimestamp) => [table.id, table])
+  const currentTables = new Map(
+    currentData.tables.map((table: any) => [table.id, table])
   );
-  const newTables = new Map<string, TableWithTimestamp>(
-    newData.tables.map((table: TableWithTimestamp) => [table.id, table])
+  const newTables = new Map(
+    newData.tables.map((table: any) => [table.id, table])
   );
 
-  // Merge strategy: Keep the most recently modified version of each table
-  const mergedTables = new Map(currentTables);
-  
-  for (const [id, newTable] of newTables) {
-    const currentTable = currentTables.get(id);
-    if (!currentTable || (newTable.lastModified > currentTable.lastModified)) {
-      mergedTables.set(id, newTable);
-    }
-  }
-
+  // Merge strategy: Keep the new tables, as they are the latest
   return {
     ...newData,
-    tables: Array.from(mergedTables.values())
+    tables: Array.from(newTables.values())
   };
 }
 
@@ -87,28 +73,33 @@ export async function saveToFirestore(data: any, collectionName: string, documen
   try {
     const docRef = doc(db, collectionName, documentId);
     
-    // Use transaction to handle concurrent updates
-    await runTransaction(db, async (transaction) => {
-      const docSnap = await transaction.get(docRef);
-      
-      if (!docSnap.exists()) {
-        // If document doesn't exist, create it with initial data
-        transaction.set(docRef, {
-          ...data,
-          lastModified: serverTimestamp(),
-          version: 1
-        });
-      } else {
-        const currentData = docSnap.data();
-        const mergedData = mergeData(currentData, data);
+    // For shift tables, we want to keep the new state entirely
+    if (collectionName === COLLECTION_NAME) {
+      await setDoc(docRef, {
+        ...data,
+        lastModified: serverTimestamp()
+      });
+    } else {
+      // For other collections, use transaction-based updates
+      await runTransaction(db, async (transaction) => {
+        const docSnap = await transaction.get(docRef);
         
-        transaction.set(docRef, {
-          ...mergedData,
-          lastModified: serverTimestamp(),
-          version: (currentData.version || 0) + 1
-        });
-      }
-    });
+        if (!docSnap.exists()) {
+          transaction.set(docRef, {
+            ...data,
+            lastModified: serverTimestamp()
+          });
+        } else {
+          const currentData = docSnap.data();
+          const mergedData = mergeData(currentData, data);
+          
+          transaction.set(docRef, {
+            ...mergedData,
+            lastModified: serverTimestamp()
+          });
+        }
+      });
+    }
 
     console.log('✅ Data saved successfully to Firestore');
   } catch (error) {
@@ -125,7 +116,7 @@ export async function loadFromFirestore(collectionName: string, documentId: stri
     if (docSnap.exists()) {
       const data = docSnap.data();
       // Remove internal fields before returning
-      const { version, ...cleanData } = data;
+      const { lastModified, ...cleanData } = data;
       return cleanData;
     } else {
       console.log('No such document exists!');
