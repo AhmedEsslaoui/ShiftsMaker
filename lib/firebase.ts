@@ -73,33 +73,49 @@ export async function saveToFirestore(data: any, collectionName: string, documen
   try {
     const docRef = doc(db, collectionName, documentId);
     
-    // For shift tables, we want to keep the new state entirely
-    if (collectionName === COLLECTION_NAME) {
-      await setDoc(docRef, {
-        ...data,
-        lastModified: serverTimestamp()
-      });
-    } else {
-      // For other collections, use transaction-based updates
-      await runTransaction(db, async (transaction) => {
-        const docSnap = await transaction.get(docRef);
+    // Use transactions for all collections including shift tables
+    await runTransaction(db, async (transaction) => {
+      const docSnap = await transaction.get(docRef);
+      
+      if (!docSnap.exists()) {
+        // If document doesn't exist, create it
+        transaction.set(docRef, {
+          ...data,
+          lastModified: serverTimestamp()
+        });
+      } else {
+        const currentData = docSnap.data();
         
-        if (!docSnap.exists()) {
+        // Special handling for shift tables
+        if (collectionName === COLLECTION_NAME) {
+          // Create maps of current and new tables using table IDs as keys
+          const currentTables = new Map(
+            (currentData.tables || []).map((table: any) => [table.id, table])
+          );
+          const newTables = new Map(
+            (data.tables || []).map((table: any) => [table.id, table])
+          );
+          
+          // Merge tables: For each table in the new data, update or add it
+          newTables.forEach((table, id) => {
+            currentTables.set(id, table);
+          });
+          
+          // Convert back to array and update
           transaction.set(docRef, {
-            ...data,
+            tables: Array.from(currentTables.values()),
             lastModified: serverTimestamp()
           });
         } else {
-          const currentData = docSnap.data();
+          // For other collections, use the existing merge strategy
           const mergedData = mergeData(currentData, data);
-          
           transaction.set(docRef, {
             ...mergedData,
             lastModified: serverTimestamp()
           });
         }
-      });
-    }
+      }
+    });
 
     console.log('✅ Data saved successfully to Firestore');
   } catch (error) {
