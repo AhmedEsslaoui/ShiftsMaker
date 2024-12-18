@@ -36,7 +36,6 @@ import {
   Trash2, 
   Calendar, 
   User, 
-  Save, 
   Edit, 
   Globe, 
   BarChart, 
@@ -45,8 +44,7 @@ import {
   ChevronUp,
   Flag,
   ArrowUpFromLine,
-  Clock,
-  CheckCircle2
+  Clock
 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
@@ -296,14 +294,11 @@ function AdminView({
     password?: string;
   } | null>(null);
 
-  const [savedTables, setSavedTables] = useState<Record<string, boolean>>({});
-
   const saveTable = async (id: string) => {
     try {
       const tableToSave = shiftTables.find(table => table.id === id);
       if (tableToSave) {
         await saveShiftTables(shiftTables);
-        setSavedTables(prev => ({ ...prev, [id]: true }));
         toast.success('Table saved successfully');
       }
     } catch (error) {
@@ -935,17 +930,6 @@ function AdminView({
                           <Globe className="mr-2 h-4 w-4" /> Publish
                         </Button>
                       )}
-                      <Button 
-                        variant="outline"
-                        size="sm"
-                        onClick={() => savedTables[shiftTable.id] ? null : saveTable(shiftTable.id)}
-                        disabled={savedTables[shiftTable.id]}
-                      >
-                        {savedTables[shiftTable.id] ? 
-                          <CheckCircle2 className="h-4 w-4 text-green-500" /> : 
-                          <Save className="h-4 w-4" />
-                        }
-                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
