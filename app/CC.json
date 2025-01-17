@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "modern-schedule-maker",
+  "private_key_id": "ecc2c90c799a94b7674b94dd2038c9eceb376719",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDF2hZMD3p7XI/z\niFJ2Rn8xk/qUcWPiynTMr8VCFcDW7WBim2O7wZlzTafhRiAEy1eunL+oguZ0qfrt\nawEKlAoxorvXfRhGuKZwArVjqMLj3EvkAYm89YvlbzeTZC08LxLNwChnuT1NTbxH\nNnS2cCXQQ6QjXAkPqgb912QYCeUNtfI8TzIaEYlgIhlwa/gPg9IuPyM7OUb96JHO\nQ6dN5mM0Gd1+KL6H/KzIQ4Cb0A+9HMIhYjJANky1rgK5cXNtuviyH5fO7JrYsgis\nlf1fT7wnYfuwIDFNLokAhUnwiqeloD2mQkyljN23ZRvbAzo/Sk75JuNkpY1qhxaG\nMxQiMonbAgMBAAECggEAMU9MvlEfQA6OK+5eSu7/9U3BpmxqLhQyLu9htLoyMP7B\nRmIe5aT3BxckD4+IHFnHdRPI6okRQaM5kCFahZXmwn8h3K9nNP0BMipipb9iLyLw\n4RcHCoqR/rEMw1W0tmqu/4t0JoGyxwjoM0FdrjheHD03c76U3YwNKQedASa6KQOu\n+LWKXS1J1HBVNs8k8JX5XcxCPLVvpU0/yMxVz3sbRriGeFN2hbH1F201/Qk4WVh7\nm2xhnI45Mze1WFX/YYpYV8nZT7snGeUhFL6Tfu0TYD4BSepfsWIeb6ofqHOdlYRm\nuxQkOzMmBI1cVZbo3BOuKsaEl95oPNUWzN5ZpQSZqQKBgQDhgKaF7kYgrEfWD2vQ\n4ccYxTRq0TvkUbQkH0vqIuS6qcQ9kXPD9VqETN2cSYATG4H0a84QBbQuDRpR6xXh\nSAjHHIJ9RDEsarcVS1ixdXskJyd4NQICQzILdUcFWcgtsgQe4QtF5sbh/gMmL2GB\nxVyr7uvUj7Cu3bBNN+AQ+aZgOQKBgQDgnB28P5xvnGUaUgjpF9PHy03BKwcC2aSz\n7jUpMvxJRdph6l9nqBMof+A3LrUO17YrffRJ9hzPsoHkgvq43Bc1wl+np8J6qXDy\nlR2Z8WRGKmJAtsCWwMt9mifLkPbPGkSuyO54QPkzRGglAS4/kJNY0dfTDj4R4mL7\nZgUbomNSswKBgCyVP9cI1cqN5SH4KIvCp5dJHeTkex/X23Ks0Vh4D5qsB8VYZXff\noUa437OPgIfGj3ngenwGdKoKIyMBBHFmyX18MHxNqB8s9gd6vw1OucrbBt2oNT53\nRISpaiIvrvkB0fi863qldrqler/o7DE48Op5MRz0T60y3TFXE7CnevJZAoGAHAAa\nTN95Nwi+KdvUNIq94ghcNxqQEzDisXOeuPYcMV497Tr0jc2MJd5bK0XtWF5X3XAk\nRhwiV1ofi0cwzl7RnegPWK03N2dsJzGjsQ9AuuaJvRuLQr/iHlRbZas6uXLC4S83\nW1JuPo/mk8Zj55S0abwvNaZu4nfgcwqy1FEYJLUCgYEAjMpb0gTZDRq+YvLsoq6b\nPj3J/qsHtUVaS9XnrQkvlX6nh1JPmaYzsY3UujFTPTqrDp4LfXK8jYQVnsu1+6D6\nELkhp7wRg1LUo06gjlph1xMDAhQF4hjVeinZitVZZopiFnXU8YpHpSj3g/SV18Ca\nu7NwEk6c3tE/WvwRZYKGfcY=\n-----END PRIVATE KEY-----\n",
+  "client_email": "shift-schedule-maker@modern-schedule-maker.iam.gserviceaccount.com",
+  "client_id": "101437042366131653652",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/shift-schedule-maker%40modern-schedule-maker.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
