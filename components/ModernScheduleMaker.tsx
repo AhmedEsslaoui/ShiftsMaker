@@ -180,7 +180,7 @@ const initialAgents = {
     "Michael Magdy", "Mohamedd Essam", "Sara Abdelrazek", "Ahmed Osama", "Hesham Adawy",
     "Sameh Adel Farah Ahmed", "Mohamed Mostafa Isawi Ali", "Mayan", "Amr Nady", "Abdulhamid Mostafa",
     "Fatima", "Youmna Yousef", "Heba Raafat", "Mahmoud Gamil abdelaziz", "Kareem abubakr",
-    "Alaa Elsayed", "Rahma Hassan Abdelrahman", "Ahmed Shaaban"
+    "Alaa Elsayed", "Rahma Hassan Abdelrahman", "Ahmed Shaaban", "Kerolos Samir", "Hazem Naeem", "Mohamed Loqman", "Ahmed Khalifa", "Mai Abdelwahed", "Nada Elsayed"
   ],
   Morocco: [
     "Yasser Marrou", "Mariem Abdelhakmi", "Zaynab Adil", "Meryem Mazroui", "Mohammad Aznague",
