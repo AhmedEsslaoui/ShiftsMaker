@@ -185,7 +185,7 @@ const initialAgents = {
   Morocco: [
     "Yasser Marrou", "Mariem Abdelhakmi", "Zaynab Adil", "Meryem Mazroui", "Mohammad Aznague",
     "Achraf Tazi", "Mohamed Elhachmi", "Mohamed ougrni", "Kenza Abbadi", "Marouan Bajbouji",
-    "Hamza Sahraoui", "Nouhaila Essalih", "Nada Bennis", "Aziz Dhraief", "Anis Boujmil"
+    "Hamza Sahraoui", "Nouhaila Essalih", "Nada Bennis", "Kawthar Lfayres", "Rym Elamri", "Yasmin Mani"
   ]
 }
 
